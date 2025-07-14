@@ -1,0 +1,138 @@
+{
+  "thales_xml_rules": {
+    "version": "1.0.0",
+    "description": "Règles de correction XML pour les commandes THALES",
+    "last_updated": "2025-07-14",
+    "rules": [
+      {
+        "name": "numero_commande",
+        "description": "Numéro de commande dans OrderId/IdValue",
+        "xpath": "//ReferenceInformation/OrderId/IdValue",
+        "source_field": "order_id",
+        "action": "create_or_update",
+        "parent_xpath": "//ReferenceInformation/OrderId",
+        "position": "before_siblings",
+        "group": "ReferenceInformation",
+        "priority": 1,
+        "mandatory": true,
+        "example": "FU70001236"
+      },
+      {
+        "name": "emploi_cc_position_code",
+        "description": "EMPLOI CC dans PositionStatus/Code", 
+        "xpath": "//PositionCharacteristics/PositionStatus/Code",
+        "source_field": "emploi_cc",
+        "action": "create_or_update",
+        "parent_xpath": "//PositionCharacteristics/PositionStatus",
+        "position": "first_child",
+        "group": "PositionCharacteristics",
+        "priority": 2,
+        "mandatory": true,
+        "example": "10A3071"
+      },
+      {
+        "name": "categorie_socio_position_level",
+        "description": "Catégorie socio-professionnelle dans PositionLevel",
+        "xpath": "//PositionCharacteristics/PositionLevel",
+        "source_field": "categorie_socio", 
+        "action": "create_or_update",
+        "parent_xpath": "//PositionCharacteristics",
+        "position": "after_position_status",
+        "group": "PositionCharacteristics",
+        "priority": 3,
+        "mandatory": true,
+        "example": "OUVRIER"
+      },
+      {
+        "name": "classement_cc_coefficient",
+        "description": "Classement CC dans PositionCoefficient",
+        "xpath": "//PositionCharacteristics/PositionCoefficient",
+        "source_field": "classement_cc",
+        "action": "create_or_update",
+        "parent_xpath": "//PositionCharacteristics", 
+        "position": "after_position_level",
+        "group": "PositionCharacteristics",
+        "priority": 4,
+        "mandatory": true,
+        "example": "B3"
+      },
+      {
+        "name": "centre_analyse_cost_center_name",
+        "description": "Centre d'analyse complet dans CostCenterName",
+        "xpath": "//CustomerReportingRequirements/CostCenterName",
+        "source_field": "centre_analyse",
+        "action": "create_or_update",
+        "parent_xpath": "//CustomerReportingRequirements",
+        "position": "after_cost_center_code", 
+        "group": "CustomerReportingRequirements",
+        "priority": 5,
+        "mandatory": false,
+        "example": "1FRA / PLADI/BP/PST04"
+      },
+      {
+        "name": "centre_analyse_department_code",
+        "description": "Préfixe centre d'analyse dans DepartmentCode",
+        "xpath": "//CustomerReportingRequirements/DepartmentCode",
+        "source_field": "centre_analyse_prefix",
+        "action": "create_or_update",
+        "parent_xpath": "//CustomerReportingRequirements",
+        "position": "beginning",
+        "group": "CustomerReportingRequirements", 
+        "priority": 6,
+        "mandatory": false,
+        "example": "1FRA"
+      },
+      {
+        "name": "centre_analyse_cost_center_code",
+        "description": "Préfixe centre d'analyse dans CostCenterCode",
+        "xpath": "//CustomerReportingRequirements/CostCenterCode", 
+        "source_field": "centre_analyse_prefix",
+        "action": "create_or_update",
+        "parent_xpath": "//CustomerReportingRequirements",
+        "position": "after_department_code",
+        "group": "CustomerReportingRequirements",
+        "priority": 7,
+        "mandatory": false,
+        "example": "1FRA"
+      },
+      {
+        "name": "worksite_conditional",
+        "description": "Centre d'analyse dans WorkSiteName si site ≠ GEMENOS",
+        "xpath": "//WorkSite/WorkSiteName",
+        "source_field": "centre_analyse",
+        "action": "create_or_update",
+        "condition": "site_not_gemenos",
+        "parent_xpath": "//WorkSite",
+        "position": "after_environment_id",
+        "group": "ContractInformation",
+        "priority": 8,
+        "mandatory": false,
+        "example": "1FRA / PLADI/BP/PST04"
+      }
+    ]
+  },
+  "validation_rules": {
+    "order_id_pattern": "^FU\\d{8}$",
+    "emploi_cc_pattern": "^[A-Z0-9]{5,10}$",
+    "categorie_socio_values": ["OUVRIER", "EMPLOYE", "TECHNICIEN", "AGENT_MAITRISE", "CADRE"],
+    "classement_cc_pattern": "^[A-Z0-9]{1,5}$"
+  },
+  "xpath_groups": {
+    "ReferenceInformation": {
+      "description": "Informations de référence de la commande",
+      "parent_xpath": "//ReferenceInformation"
+    },
+    "PositionCharacteristics": {
+      "description": "Caractéristiques du poste",
+      "parent_xpath": "//PositionCharacteristics"
+    },
+    "CustomerReportingRequirements": {
+      "description": "Exigences de reporting client",
+      "parent_xpath": "//CustomerReportingRequirements"
+    },
+    "ContractInformation": {
+      "description": "Informations contractuelles",
+      "parent_xpath": "//ContractInformation"
+    }
+  }
+}
