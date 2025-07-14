@@ -1,0 +1,95 @@
+{
+  "metadata": {
+    "last_updated": "2025-07-14T21:55:46.377Z",
+    "version": "1.0.0",
+    "client": "THALES",
+    "source": "Google Sheet via Apps Script",
+    "repository": "thales-xml-auto-corrector",
+    "status": "empty_sheet"
+  },
+  "commandes": [],
+  "regles_xml": [
+    {
+      "name": "numero_commande",
+      "description": "Num?ro de commande dans OrderId/IdValue",
+      "xpath": "//ReferenceInformation/OrderId/IdValue",
+      "source_field": "order_id",
+      "action": "create_or_update",
+      "parent_xpath": "//ReferenceInformation/OrderId",
+      "group": "ReferenceInformation"
+    },
+    {
+      "name": "emploi_cc_position_code",
+      "description": "EMPLOI CC dans PositionStatus/Code",
+      "xpath": "//PositionCharacteristics/PositionStatus/Code",
+      "source_field": "emploi_cc",
+      "action": "create_or_update",
+      "parent_xpath": "//PositionCharacteristics/PositionStatus",
+      "group": "PositionCharacteristics"
+    },
+    {
+      "name": "categorie_socio_position_level",
+      "description": "Cat?gorie socio-professionnelle dans PositionLevel",
+      "xpath": "//PositionCharacteristics/PositionLevel",
+      "source_field": "categorie_socio",
+      "action": "create_or_update",
+      "parent_xpath": "//PositionCharacteristics",
+      "group": "PositionCharacteristics"
+    },
+    {
+      "name": "classement_cc_coefficient",
+      "description": "Classement CC dans PositionCoefficient",
+      "xpath": "//PositionCharacteristics/PositionCoefficient",
+      "source_field": "classement_cc",
+      "action": "create_or_update",
+      "parent_xpath": "//PositionCharacteristics",
+      "group": "PositionCharacteristics"
+    },
+    {
+      "name": "centre_analyse_cost_center_name",
+      "description": "Centre d'analyse complet dans CostCenterName",
+      "xpath": "//CustomerReportingRequirements/CostCenterName",
+      "source_field": "centre_analyse",
+      "action": "create_or_update",
+      "parent_xpath": "//CustomerReportingRequirements",
+      "group": "CustomerReportingRequirements"
+    },
+    {
+      "name": "centre_analyse_department_code",
+      "description": "Pr?fixe centre d'analyse dans DepartmentCode",
+      "xpath": "//CustomerReportingRequirements/DepartmentCode",
+      "source_field": "centre_analyse_prefix",
+      "action": "create_or_update",
+      "parent_xpath": "//CustomerReportingRequirements",
+      "group": "CustomerReportingRequirements"
+    },
+    {
+      "name": "centre_analyse_cost_center_code",
+      "description": "Pr?fixe centre d'analyse dans CostCenterCode",
+      "xpath": "//CustomerReportingRequirements/CostCenterCode",
+      "source_field": "centre_analyse_prefix",
+      "action": "create_or_update",
+      "parent_xpath": "//CustomerReportingRequirements",
+      "group": "CustomerReportingRequirements"
+    },
+    {
+      "name": "worksite_conditional",
+      "description": "Centre d'analyse dans WorkSiteName si site ? GEMENOS",
+      "xpath": "//WorkSite/WorkSiteName",
+      "source_field": "centre_analyse",
+      "action": "create_or_update",
+      "condition": "site_not_gemenos",
+      "parent_xpath": "//WorkSite",
+      "group": "ContractInformation"
+    }
+  ],
+  "statistiques": {
+    "total_commandes": 0,
+    "derniere_mise_a_jour": "2025-07-14T21:55:46.377Z",
+    "codes_agence_uniques": [],
+    "emplois_cc_uniques": [],
+    "categories_socio_uniques": [],
+    "classements_cc_uniques": [],
+    "repartition_par_agence": {}
+  }
+}
