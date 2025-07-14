@@ -1,20 +1,22 @@
 # streamlit_app/app.py
 """
-Application Streamlit pour la correction automatique des fichiers XML THALES
+THALES XML Auto-Corrector - Version Native 100%
+Reproduit exactement la logique du Google Apps Script mais en upload direct
 Repository: thales-xml-auto-corrector
 """
 
 import streamlit as st
-import pandas as pd
 import json
+import re
 import zipfile
 import io
-import re
 from datetime import datetime
+from typing import Dict, List, Any, Optional
+import xml.etree.ElementTree as ET
 from lxml import etree
-from typing import Dict, List, Any, Optional, Tuple
+import pandas as pd
 
-# Configuration de la page
+# Configuration
 st.set_page_config(
     page_title="THALES XML Auto-Corrector",
     page_icon="⚙️",
@@ -22,387 +24,550 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Configuration des chemins
-THALES_ORDERS_JSON_PATH = 'thales_orders.json'
-
-class ThalesXMLProcessor:
-    """Processeur XML spécialisé pour les commandes THALES"""
+class ThalesEmailParser:
+    """Parser pour emails THALES - reproduit la logique du script Apps Script"""
     
-    def __init__(self, thales_data: Dict[str, Any]):
-        self.thales_data = thales_data
-        self.commandes = {cmd['order_id']: cmd for cmd in thales_data.get('commandes', [])}
-        self.regles_xml = thales_data.get('regles_xml', [])
-        
-    def extract_order_id_from_xml(self, xml_content: str) -> Optional[str]:
-        """Extrait le numéro de commande du XML"""
+    def __init__(self):
+        self.client = "THALES"
+    
+    def parse_html_email(self, file_content: str, file_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Extrait les données THALES depuis un email HTML
+        Reproduit exactement la logique du script Google Apps Script
+        """
         try:
-            # Patterns pour détecter les numéros de commande THALES
-            patterns = [
-                r'FU\d{8}',  # Format standard FU70001236
-                r'<OrderId[^>]*>.*?FU\d{8}.*?</OrderId>',
-                r'<IdValue[^>]*>(FU\d{8})</IdValue>',
-                r'<CustomerJobCode[^>]*>(FU\d{8})</CustomerJobCode>'
-            ]
+            # Nettoyer le contenu HTML (même logique que Apps Script)
+            text_content = self._clean_html_content(file_content)
             
-            for pattern in patterns:
-                matches = re.findall(pattern, xml_content, re.IGNORECASE)
-                for match in matches:
-                    # Extraire juste le numéro de commande
-                    order_match = re.search(r'FU\d{8}', match)
-                    if order_match:
-                        return order_match.group(0)
+            # Validation THALES
+            if not self._is_valid_thales_email(text_content):
+                return None
             
-            return None
+            # Extraction des données (mêmes regex que Apps Script)
+            extracted_data = {
+                "fileName": file_name,
+                "dateReception": datetime.now(),
+                "client": "THALES"
+            }
             
-        except Exception as e:
-            st.error(f"Erreur lors de l'extraction de l'order ID: {e}")
-            return None
-    
-    def get_commande_data(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """Récupère les données d'une commande THALES"""
-        return self.commandes.get(order_id)
-    
-    def apply_xml_rule(self, xml_tree: etree.Element, rule: Dict[str, Any], commande_data: Dict[str, Any]) -> Tuple[bool, str]:
-        """Applique une règle XML spécifique"""
-        try:
-            rule_name = rule.get('name')
-            xpath = rule.get('xpath')
-            source_field = rule.get('source_field')
-            action = rule.get('action', 'create_or_update')
-            condition = rule.get('condition')
+            # 1. Code agence (ex: GR1 dans "Agence de GR1-GR1")
+            agence_match = re.search(r'Agence de ([A-Z0-9]+)(?:-[A-Z0-9]+)?', text_content, re.IGNORECASE)
+            extracted_data["codeAgence"] = agence_match.group(1) if agence_match else 'INCONNU'
             
-            # Vérifier la condition si elle existe
-            if condition and condition == 'site_not_gemenos':
-                if not commande_data.get('site_not_gemenos', False):
-                    return False, f"Condition {condition} non remplie"
+            # 2. Numéro de commande (ex: FU70001236)
+            commande_match = re.search(r'Publication de la commande client N[°\s]*:\s*([A-Z0-9]+)', text_content, re.IGNORECASE)
+            extracted_data["numeroCommande"] = commande_match.group(1) if commande_match else None
             
-            # Récupérer la valeur à insérer
-            value = commande_data.get(source_field)
-            if not value:
-                return False, f"Valeur manquante pour {source_field}"
+            # 3. EMPLOI CC (ex: 10A3071)
+            emploi_match = re.search(r'\*?EMPLOi CC[:\s]*([A-Z0-9]+)(?:\s*-)', text_content, re.IGNORECASE)
+            extracted_data["emploiCC"] = emploi_match.group(1).strip() if emploi_match else None
             
-            # Chercher l'élément existant
-            existing_elements = xml_tree.xpath(xpath)
+            # 4. Catégorie socio-professionnelle (ex: OUVRIER)
+            categorie_match = re.search(r'\*?Catégorie socio-professionnelle[:\s]*([A-Z]+)', text_content, re.IGNORECASE)
+            extracted_data["categorieSocio"] = categorie_match.group(1).strip() if categorie_match else None
             
-            if existing_elements:
-                # Mettre à jour l'élément existant
-                existing_elements[0].text = str(value)
-                return True, f"Mis à jour {rule_name}: {value}"
-            else:
-                # Créer un nouvel élément
-                return self._create_xml_element(xml_tree, rule, value)
+            # 5. Classement CC (ex: B3)
+            classement_match = re.search(r'\*?Classement CC[:\s]*([A-Z0-9]+)', text_content, re.IGNORECASE)
+            extracted_data["classementCC"] = classement_match.group(1).strip() if classement_match else None
+            
+            # 6. Centre d'analyse (ex: 1FRA / PLADI/BP/PST04)
+            centre_match = re.search(r'\*?Centre d\'analyse[:\s]*([^\\r\\n.]+)', text_content, re.IGNORECASE)
+            extracted_data["centreAnalyse"] = centre_match.group(1).strip() if centre_match else None
+            
+            # 7. SIRET Client
+            siret_match = re.search(r'SIRET[:\s]*([0-9]+)', text_content, re.IGNORECASE)
+            extracted_data["siretClient"] = siret_match.group(1) if siret_match else None
+            
+            # 8. Site de mission
+            site_match = re.search(r'Lieu de la mission[:\s]*([^\\r\\n]+?)(?=\\s*\\r|\\s*\\n|Informations|$)', text_content, re.IGNORECASE)
+            extracted_data["siteMission"] = site_match.group(1).strip().replace('\\s+', ' ') if site_match else None
+            
+            # 9. Date début de mission
+            date_debut_match = re.search(r'Date de début de mission[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})', text_content, re.IGNORECASE)
+            if date_debut_match:
+                extracted_data["dateDebut"] = self._parse_french_date(date_debut_match.group(1))
+            
+            # 10. Date fin de mission
+            date_fin_match = re.search(r'Date de fin de mission[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})', text_content, re.IGNORECASE)
+            if date_fin_match:
+                extracted_data["dateFin"] = self._parse_french_date(date_fin_match.group(1))
+            
+            # Calcul du préfixe centre d'analyse
+            extracted_data["centreAnalysePrefix"] = self._extract_centre_prefix(extracted_data.get("centreAnalyse", ""))
+            
+            # Déterminer si site ≠ GEMENOS
+            extracted_data["siteNotGemenos"] = "GEMENOS" not in extracted_data.get("siteMission", "").upper()
+            
+            # Validation des données critiques
+            if not extracted_data["numeroCommande"]:
+                return None
                 
+            return extracted_data
+            
         except Exception as e:
-            return False, f"Erreur lors de l'application de la règle {rule_name}: {e}"
+            st.error(f"Erreur lors de l'extraction de {file_name}: {e}")
+            return None
     
-    def _create_xml_element(self, xml_tree: etree.Element, rule: Dict[str, Any], value: str) -> Tuple[bool, str]:
-        """Crée un nouvel élément XML selon la règle"""
+    def _clean_html_content(self, content: str) -> str:
+        """Nettoie le contenu HTML (même logique que Apps Script)"""
+        # Supprimer les balises script et style
+        content = re.sub(r'<script[^>]*>.*?</script>', '', content, flags=re.IGNORECASE | re.DOTALL)
+        content = re.sub(r'<style[^>]*>.*?</style>', '', content, flags=re.IGNORECASE | re.DOTALL)
+        
+        # Supprimer toutes les balises HTML
+        content = re.sub(r'<[^>]+>', ' ', content)
+        
+        # Décoder les entités HTML
+        html_entities = {
+            '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',
+            '&quot;': '"', '&#39;': "'", '=C3=A9': 'é', '=C3=A8': 'è',
+            '=C3=A0': 'à', '=C2=B0': '°'
+        }
+        
+        for entity, replacement in html_entities.items():
+            content = content.replace(entity, replacement)
+        
+        # Nettoyer les espaces
+        content = re.sub(r'\\r\\n', ' ', content)
+        content = re.sub(r'\\n', ' ', content)
+        content = re.sub(r'\s+', ' ', content)
+        
+        return content
+    
+    def _is_valid_thales_email(self, content: str) -> bool:
+        """Valide que c'est bien un email THALES"""
+        return 'THALES SAS' in content and 'Publication de la commande client' in content
+    
+    def _parse_french_date(self, date_str: str) -> str:
+        """Parse une date française DD/MM/YYYY"""
         try:
-            parent_xpath = rule.get('parent_xpath')
-            position = rule.get('position', 'last_child')
-            
-            if not parent_xpath:
-                return False, f"parent_xpath manquant pour {rule.get('name')}"
-            
-            # Trouver l'élément parent
-            parent_elements = xml_tree.xpath(parent_xpath)
-            if not parent_elements:
-                return False, f"Élément parent non trouvé: {parent_xpath}"
-            
-            parent = parent_elements[0]
-            
-            # Extraire le nom de l'élément depuis le xpath
-            element_name = rule.get('xpath', '').split('/')[-1]
-            if not element_name:
-                return False, f"Impossible d'extraire le nom de l'élément"
-            
-            # Créer le nouvel élément
-            new_element = etree.SubElement(parent, element_name)
-            new_element.text = str(value)
-            
-            return True, f"Créé {rule.get('name')}: {value}"
-            
-        except Exception as e:
-            return False, f"Erreur lors de la création de l'élément: {e}"
+            day, month, year = date_str.split('/')
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            return date_str
     
-    def process_xml(self, xml_content: str, order_id: str) -> Tuple[Optional[str], List[str]]:
-        """Traite un XML avec les règles THALES"""
+    def _extract_centre_prefix(self, centre_analyse: str) -> str:
+        """Extrait le préfixe du centre d'analyse"""
+        if not centre_analyse:
+            return ""
+        
+        parts = centre_analyse.split()
+        if parts:
+            return parts[0].split('/')[0].strip()
+        return ""
+
+class ThalesXMLCorrector:
+    """Correcteur XML THALES basé sur les règles XPath"""
+    
+    def __init__(self):
+        self.xml_rules = self._get_thales_xml_rules()
+    
+    def correct_xml_file(self, xml_content: str, thales_data: Dict[str, Any]) -> str:
+        """Applique les corrections XML selon les règles THALES"""
         try:
             # Parser le XML
-            parser = etree.XMLParser(strip_whitespace=False, recover=True)
-            xml_tree = etree.fromstring(xml_content.encode('utf-8'), parser)
+            parser = etree.XMLParser(strip_cdata=False)
+            root = etree.fromstring(xml_content.encode('utf-8'), parser)
             
-            # Récupérer les données de la commande
-            commande_data = self.get_commande_data(order_id)
-            if not commande_data:
-                return None, [f"❌ Commande {order_id} non trouvée dans les données THALES"]
+            corrections_applied = []
             
-            applied_rules = []
+            # Appliquer chaque règle
+            for rule in self.xml_rules:
+                if self._should_apply_rule(rule, thales_data):
+                    success = self._apply_xml_rule(root, rule, thales_data)
+                    if success:
+                        corrections_applied.append(rule['name'])
             
-            # Appliquer chaque règle XML
-            for rule in self.regles_xml:
-                success, message = self.apply_xml_rule(xml_tree, rule, commande_data)
-                if success:
-                    applied_rules.append(f"✅ {message}")
-                else:
-                    applied_rules.append(f"⚠️ {message}")
+            # Retourner le XML corrigé
+            corrected_xml = etree.tostring(root, encoding='unicode', pretty_print=True)
             
-            # Générer le XML corrigé
-            corrected_xml = etree.tostring(xml_tree, encoding='unicode', pretty_print=True)
-            
-            return corrected_xml, applied_rules
+            return corrected_xml, corrections_applied
             
         except Exception as e:
-            return None, [f"❌ Erreur lors du traitement XML: {e}"]
-
-@st.cache_data(ttl=300)  # Cache 5 minutes
-def load_thales_data():
-    """Charge les données THALES avec cache"""
-    try:
-        with open(THALES_ORDERS_JSON_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            st.error(f"Erreur lors de la correction XML: {e}")
+            return xml_content, []
+    
+    def _should_apply_rule(self, rule: Dict[str, Any], thales_data: Dict[str, Any]) -> bool:
+        """Détermine si une règle doit être appliquée"""
+        # Vérifier les conditions
+        if 'condition' in rule:
+            condition = rule['condition']
+            if condition == 'site_not_gemenos':
+                return thales_data.get('siteNotGemenos', False)
         
-        st.sidebar.success(f"✅ {len(data.get('commandes', []))} commandes THALES chargées")
-        return data
-        
-    except FileNotFoundError:
-        st.sidebar.error(f"❌ Fichier {THALES_ORDERS_JSON_PATH} non trouvé")
-        st.sidebar.info("Exécutez d'abord la synchronisation GitHub Actions")
-        return None
-    except Exception as e:
-        st.sidebar.error(f"❌ Erreur chargement: {e}")
-        return None
-
-def display_thales_statistics(thales_data: Dict[str, Any]):
-    """Affiche les statistiques THALES"""
-    stats = thales_data.get('statistiques', {})
+        # Vérifier que le champ source existe
+        source_field = rule['source_field']
+        return bool(thales_data.get(self._map_field_name(source_field)))
     
-    col1, col2, col3, col4 = st.columns(4)
+    def _apply_xml_rule(self, root: etree.Element, rule: Dict[str, Any], thales_data: Dict[str, Any]) -> bool:
+        """Applique une règle XML spécifique"""
+        try:
+            xpath = rule['xpath']
+            source_field = rule['source_field']
+            action = rule['action']
+            
+            # Mapper le nom du champ
+            mapped_field = self._map_field_name(source_field)
+            value = thales_data.get(mapped_field)
+            
+            if not value:
+                return False
+            
+            # Chercher l'élément existant
+            elements = root.xpath(xpath)
+            
+            if elements:
+                # Mettre à jour l'élément existant
+                elements[0].text = str(value)
+            else:
+                # Créer l'élément
+                self._create_xml_element(root, rule, value)
+            
+            return True
+            
+        except Exception as e:
+            st.warning(f"Erreur lors de l'application de la règle {rule['name']}: {e}")
+            return False
     
-    with col1:
-        st.metric("Total Commandes", stats.get('total_commandes', 0))
+    def _create_xml_element(self, root: etree.Element, rule: Dict[str, Any], value: str):
+        """Crée un nouvel élément XML"""
+        try:
+            xpath = rule['xpath']
+            parent_xpath = rule.get('parent_xpath')
+            
+            if not parent_xpath:
+                return
+            
+            # Trouver le parent
+            parents = root.xpath(parent_xpath)
+            if not parents:
+                return
+            
+            parent = parents[0]
+            
+            # Extraire le nom de l'élément depuis xpath
+            element_name = xpath.split('/')[-1]
+            
+            # Créer l'élément
+            new_element = etree.Element(element_name)
+            new_element.text = str(value)
+            
+            # Ajouter au parent
+            parent.append(new_element)
+            
+        except Exception as e:
+            st.warning(f"Erreur lors de la création de l'élément: {e}")
     
-    with col2:
-        st.metric("Codes Agence", len(stats.get('codes_agence_uniques', [])))
+    def _map_field_name(self, source_field: str) -> str:
+        """Mappe les noms de champs entre les règles et les données extraites"""
+        mapping = {
+            'order_id': 'numeroCommande',
+            'emploi_cc': 'emploiCC',
+            'categorie_socio': 'categorieSocio',
+            'classement_cc': 'classementCC',
+            'centre_analyse': 'centreAnalyse',
+            'centre_analyse_prefix': 'centreAnalysePrefix'
+        }
+        return mapping.get(source_field, source_field)
     
-    with col3:
-        st.metric("Emplois CC", len(stats.get('emplois_cc_uniques', [])))
-    
-    with col4:
-        st.metric("Règles XML", len(thales_data.get('regles_xml', [])))
-
-def display_commande_details(commande_data: Dict[str, Any]):
-    """Affiche les détails d'une commande THALES"""
-    st.write("### 📋 Détails de la Commande")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write(f"**Numéro:** {commande_data.get('order_id', 'N/A')}")
-        st.write(f"**Code Agence:** {commande_data.get('code_agence', 'N/A')}")
-        st.write(f"**Emploi CC:** {commande_data.get('emploi_cc', 'N/A')}")
-        st.write(f"**Catégorie Socio:** {commande_data.get('categorie_socio', 'N/A')}")
-        st.write(f"**Classement CC:** {commande_data.get('classement_cc', 'N/A')}")
-    
-    with col2:
-        st.write(f"**Centre d'Analyse:** {commande_data.get('centre_analyse', 'N/A')}")
-        st.write(f"**SIRET Client:** {commande_data.get('siret_client', 'N/A')}")
-        st.write(f"**Date Début:** {commande_data.get('date_debut', 'N/A')}")
-        st.write(f"**Date Fin:** {commande_data.get('date_fin', 'N/A')}")
-        st.write(f"**Site Mission:** {commande_data.get('site_mission', 'N/A')[:50]}...")
+    def _get_thales_xml_rules(self) -> List[Dict[str, Any]]:
+        """Définit les règles XML THALES (même logique que le script sync)"""
+        return [
+            {
+                "name": "numero_commande",
+                "description": "Numéro de commande dans OrderId/IdValue",
+                "xpath": "//ReferenceInformation/OrderId/IdValue",
+                "source_field": "order_id",
+                "action": "create_or_update",
+                "parent_xpath": "//ReferenceInformation/OrderId",
+                "group": "ReferenceInformation"
+            },
+            {
+                "name": "emploi_cc_position_code",
+                "description": "EMPLOI CC dans PositionStatus/Code",
+                "xpath": "//PositionCharacteristics/PositionStatus/Code",
+                "source_field": "emploi_cc",
+                "action": "create_or_update",
+                "parent_xpath": "//PositionCharacteristics/PositionStatus",
+                "group": "PositionCharacteristics"
+            },
+            {
+                "name": "categorie_socio_position_level",
+                "description": "Catégorie socio-professionnelle dans PositionLevel",
+                "xpath": "//PositionCharacteristics/PositionLevel",
+                "source_field": "categorie_socio",
+                "action": "create_or_update",
+                "parent_xpath": "//PositionCharacteristics",
+                "group": "PositionCharacteristics"
+            },
+            {
+                "name": "classement_cc_coefficient",
+                "description": "Classement CC dans PositionCoefficient",
+                "xpath": "//PositionCharacteristics/PositionCoefficient",
+                "source_field": "classement_cc",
+                "action": "create_or_update",
+                "parent_xpath": "//PositionCharacteristics",
+                "group": "PositionCharacteristics"
+            },
+            {
+                "name": "centre_analyse_cost_center_name",
+                "description": "Centre d'analyse complet dans CostCenterName",
+                "xpath": "//CustomerReportingRequirements/CostCenterName",
+                "source_field": "centre_analyse",
+                "action": "create_or_update",
+                "parent_xpath": "//CustomerReportingRequirements",
+                "group": "CustomerReportingRequirements"
+            },
+            {
+                "name": "centre_analyse_department_code",
+                "description": "Préfixe centre d'analyse dans DepartmentCode",
+                "xpath": "//CustomerReportingRequirements/DepartmentCode",
+                "source_field": "centre_analyse_prefix",
+                "action": "create_or_update",
+                "parent_xpath": "//CustomerReportingRequirements",
+                "group": "CustomerReportingRequirements"
+            },
+            {
+                "name": "centre_analyse_cost_center_code",
+                "description": "Préfixe centre d'analyse dans CostCenterCode",
+                "xpath": "//CustomerReportingRequirements/CostCenterCode",
+                "source_field": "centre_analyse_prefix",
+                "action": "create_or_update",
+                "parent_xpath": "//CustomerReportingRequirements",
+                "group": "CustomerReportingRequirements"
+            },
+            {
+                "name": "worksite_conditional",
+                "description": "Centre d'analyse dans WorkSiteName si site ≠ GEMENOS",
+                "xpath": "//WorkSite/WorkSiteName",
+                "source_field": "centre_analyse",
+                "action": "create_or_update",
+                "condition": "site_not_gemenos",
+                "parent_xpath": "//WorkSite",
+                "group": "ContractInformation"
+            }
+        ]
 
 def main():
-    """Fonction principale de l'application Streamlit"""
+    """Interface principale Streamlit"""
     
-    # En-tête
+    # Titre et description
     st.title("⚙️ THALES XML Auto-Corrector")
-    st.markdown("*Correction automatique des fichiers XML THALES basée sur les données de commandes*")
+    st.markdown("**Version Native 100% - Sans APIs externes**")
     
-    # Sidebar - Chargement des données
+    # Sidebar pour les instructions
     with st.sidebar:
-        st.header("📊 Données THALES")
+        st.header("📋 Instructions")
+        st.markdown("""
+        **Étape 1:** Uploadez vos emails THALES (HTML/EML)
         
-        # Bouton de rechargement des données
-        if st.button("🔄 Recharger les données"):
-            st.cache_data.clear()
-            st.rerun()
+        **Étape 2:** Vérifiez les données extraites
         
-        # Chargement des données
-        thales_data = load_thales_data()
+        **Étape 3:** Uploadez vos fichiers XML à corriger
         
-        if not thales_data:
-            st.stop()
+        **Étape 4:** Téléchargez les XML corrigés
+        """)
         
-        # Affichage des informations de dernière mise à jour
-        last_updated = thales_data.get('metadata', {}).get('last_updated', 'Inconnue')
-        st.info(f"🕒 Dernière MAJ: {last_updated[:19].replace('T', ' ')}")
-        
-        # Filtre par code agence
-        stats = thales_data.get('statistiques', {})
-        codes_agence = ['Tous'] + stats.get('codes_agence_uniques', [])
-        selected_agence = st.selectbox("📍 Filtrer par agence", codes_agence)
+        st.markdown("---")
+        st.markdown("**🎯 Reproduit exactement la logique du script Google Apps Script**")
     
-    # Affichage des statistiques
-    display_thales_statistics(thales_data)
+    # Initialiser les parsers
+    email_parser = ThalesEmailParser()
+    xml_corrector = ThalesXMLCorrector()
     
-    # Interface principale
-    st.header("📁 Upload et Traitement XML")
+    # Étape 1: Upload des emails THALES
+    st.header("📧 1. Upload des Emails THALES")
     
-    # Upload de fichiers
-    uploaded_files = st.file_uploader(
-        "Sélectionnez les fichiers XML à corriger",
-        type=['xml'],
+    uploaded_emails = st.file_uploader(
+        "Sélectionnez vos emails THALES (HTML ou EML)",
+        type=['html', 'eml', 'txt'],
         accept_multiple_files=True,
-        help="Supports: fichiers XML individuels ou multiples"
+        help="Même format que ceux traités par Google Apps Script"
     )
     
-    if uploaded_files:
-        # Initialisation du processeur
-        processor = ThalesXMLProcessor(thales_data)
-        
-        st.write(f"### 📄 {len(uploaded_files)} fichier(s) uploadé(s)")
-        
-        # Traitement des fichiers
-        results = []
-        processed_files = []
-        
-        for uploaded_file in uploaded_files:
-            st.write(f"#### 🔄 Traitement: {uploaded_file.name}")
-            
-            try:
-                # Lire le contenu XML
-                xml_content = uploaded_file.read().decode('utf-8')
-                
-                # Extraire l'order ID
-                order_id = processor.extract_order_id_from_xml(xml_content)
-                
-                if not order_id:
-                    st.error(f"❌ Numéro de commande THALES non trouvé dans {uploaded_file.name}")
-                    continue
-                
-                st.success(f"✅ Commande détectée: **{order_id}**")
-                
-                # Récupérer les données de la commande
-                commande_data = processor.get_commande_data(order_id)
-                
-                if not commande_data:
-                    st.error(f"❌ Commande {order_id} non trouvée dans les données")
-                    continue
-                
-                # Filtrage par agence si sélectionné
-                if selected_agence != 'Tous' and commande_data.get('code_agence') != selected_agence:
-                    st.warning(f"⚠️ Commande ignorée (agence: {commande_data.get('code_agence')})")
-                    continue
-                
-                # Afficher les détails de la commande
-                with st.expander(f"📋 Détails commande {order_id}", expanded=False):
-                    display_commande_details(commande_data)
-                
-                # Traitement XML
-                corrected_xml, applied_rules = processor.process_xml(xml_content, order_id)
-                
-                if corrected_xml:
-                    st.success(f"✅ XML corrigé avec succès!")
-                    
-                    # Afficher les règles appliquées
-                    with st.expander(f"📝 Règles appliquées ({len(applied_rules)})", expanded=False):
-                        for rule in applied_rules:
-                            st.write(rule)
-                    
-                    # Préparer pour téléchargement
-                    processed_files.append({
-                        'original_name': uploaded_file.name,
-                        'corrected_name': f"{uploaded_file.name.replace('.xml', '')}_THALES_corrected.xml",
-                        'content': corrected_xml,
-                        'order_id': order_id,
-                        'rules_applied': len([r for r in applied_rules if r.startswith('✅')])
-                    })
-                    
-                else:
-                    st.error(f"❌ Échec de la correction du XML")
-                    for rule in applied_rules:
-                        st.write(rule)
-            
-            except Exception as e:
-                st.error(f"❌ Erreur lors du traitement de {uploaded_file.name}: {e}")
-        
-        # Section de téléchargement
-        if processed_files:
-            st.header("💾 Téléchargement")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("### 📄 Fichiers individuels")
-                for file_info in processed_files:
-                    st.download_button(
-                        label=f"📥 {file_info['corrected_name']}",
-                        data=file_info['content'],
-                        file_name=file_info['corrected_name'],
-                        mime='application/xml',
-                        help=f"Commande: {file_info['order_id']} | {file_info['rules_applied']} règles appliquées"
-                    )
-            
-            with col2:
-                if len(processed_files) > 1:
-                    st.write("### 📦 Archive ZIP")
-                    
-                    # Créer une archive ZIP
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for file_info in processed_files:
-                            zip_file.writestr(file_info['corrected_name'], file_info['content'])
-                    
-                    zip_buffer.seek(0)
-                    
-                    st.download_button(
-                        label=f"📥 Télécharger tous ({len(processed_files)} fichiers)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"THALES_XML_corrected_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
-                        mime='application/zip'
-                    )
-            
-            # Résumé
-            st.success(f"🎉 **{len(processed_files)} fichier(s) traité(s) avec succès!**")
-            
-            # Tableau récapitulatif
-            if len(processed_files) > 1:
-                df_summary = pd.DataFrame([
-                    {
-                        'Fichier': f['original_name'],
-                        'Commande': f['order_id'],
-                        'Règles Appliquées': f['rules_applied']
-                    }
-                    for f in processed_files
-                ])
-                
-                st.write("### 📊 Résumé du traitement")
-                st.dataframe(df_summary, use_container_width=True)
+    thales_data_list = []
     
-    # Section informations
-    with st.expander("ℹ️ Comment utiliser cette application", expanded=False):
-        st.markdown("""
-        ### 🚀 Étapes d'utilisation
+    if uploaded_emails:
+        st.success(f"📁 {len(uploaded_emails)} fichiers email uploadés")
         
-        1. **📁 Upload** : Sélectionnez un ou plusieurs fichiers XML THALES
-        2. **🔍 Détection** : L'application détecte automatiquement les numéros de commande
-        3. **📋 Correspondance** : Les données de commande sont récupérées depuis le Google Sheet
-        4. **⚙️ Correction** : Application automatique des règles XML THALES
-        5. **💾 Téléchargement** : Récupération des fichiers XML corrigés
+        # Parser chaque email
+        with st.expander("🔍 Détails de l'extraction", expanded=True):
+            for i, email_file in enumerate(uploaded_emails):
+                try:
+                    # Lire le contenu
+                    content = email_file.read().decode('utf-8', errors='ignore')
+                    
+                    # Parser avec la même logique que Apps Script
+                    extracted_data = email_parser.parse_html_email(content, email_file.name)
+                    
+                    if extracted_data:
+                        thales_data_list.append(extracted_data)
+                        
+                        # Afficher les données extraites
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown(f"**✅ {email_file.name}**")
+                            st.markdown(f"- **Commande:** {extracted_data.get('numeroCommande', 'N/A')}")
+                            st.markdown(f"- **Agence:** {extracted_data.get('codeAgence', 'N/A')}")
+                            st.markdown(f"- **Emploi CC:** {extracted_data.get('emploiCC', 'N/A')}")
+                        
+                        with col2:
+                            st.markdown("**Données extraites:**")
+                            st.markdown(f"- **Catégorie:** {extracted_data.get('categorieSocio', 'N/A')}")
+                            st.markdown(f"- **Classement:** {extracted_data.get('classementCC', 'N/A')}")
+                            st.markdown(f"- **Centre:** {extracted_data.get('centreAnalysePrefix', 'N/A')}")
+                    else:
+                        st.warning(f"⚠️ {email_file.name}: Données THALES non détectées")
+                
+                except Exception as e:
+                    st.error(f"❌ Erreur avec {email_file.name}: {e}")
+    
+    # Étape 2: Affichage du résumé des données
+    if thales_data_list:
+        st.header("📊 2. Données THALES Extraites")
         
-        ### 📝 Règles appliquées
+        # Créer un DataFrame pour affichage
+        df_display = pd.DataFrame([
+            {
+                'Fichier': data['fileName'],
+                'Commande': data.get('numeroCommande', ''),
+                'Agence': data.get('codeAgence', ''),
+                'Emploi CC': data.get('emploiCC', ''),
+                'Catégorie': data.get('categorieSocio', ''),
+                'Classement': data.get('classementCC', ''),
+                'Centre': data.get('centreAnalyse', ''),
+                'Préfixe': data.get('centreAnalysePrefix', '')
+            }
+            for data in thales_data_list
+        ])
         
-        - **Numéro de commande** → `OrderId/IdValue`
-        - **Emploi CC** → `PositionStatus/Code`  
-        - **Catégorie socio** → `PositionLevel`
-        - **Classement CC** → `PositionCoefficient`
-        - **Centre d'analyse** → `CostCenterName`, `DepartmentCode`, `CostCenterCode`
-        - **WorkSite conditionnel** → Si site ≠ GEMENOS
+        st.dataframe(df_display, use_container_width=True)
         
-        ### 🔄 Synchronisation
+        # Statistiques
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("📧 Emails traités", len(thales_data_list))
+        with col2:
+            agences = set(data.get('codeAgence', '') for data in thales_data_list)
+            st.metric("🏢 Agences", len(agences))
+        with col3:
+            commandes = set(data.get('numeroCommande', '') for data in thales_data_list if data.get('numeroCommande'))
+            st.metric("📋 Commandes", len(commandes))
+        with col4:
+            emplois = set(data.get('emploiCC', '') for data in thales_data_list if data.get('emploiCC'))
+            st.metric("💼 Emplois CC", len(emplois))
+    
+    # Étape 3: Upload des fichiers XML
+    if thales_data_list:
+        st.header("⚙️ 3. Correction des Fichiers XML")
         
-        Les données sont synchronisées automatiquement toutes les 15 minutes depuis votre Google Sheet.
-        """)
+        uploaded_xmls = st.file_uploader(
+            "Sélectionnez vos fichiers XML à corriger",
+            type=['xml'],
+            accept_multiple_files=True,
+            help="Les corrections seront appliquées selon les règles THALES"
+        )
+        
+        if uploaded_xmls:
+            st.success(f"📁 {len(uploaded_xmls)} fichiers XML uploadés")
+            
+            # Options de correction
+            with st.expander("🔧 Options de Correction"):
+                auto_detect = st.checkbox("🎯 Détection automatique par numéro de commande", value=True)
+                manual_mapping = st.checkbox("🔧 Correspondance manuelle", value=False)
+                
+                if manual_mapping:
+                    st.info("Fonctionnalité de correspondance manuelle à implémenter")
+            
+            # Bouton de correction
+            if st.button("🚀 Appliquer les Corrections THALES", type="primary"):
+                corrected_files = []
+                correction_summary = []
+                
+                # Traiter chaque fichier XML
+                for xml_file in uploaded_xmls:
+                    try:
+                        xml_content = xml_file.read().decode('utf-8')
+                        
+                        # Détecter la commande associée
+                        matching_data = None
+                        if auto_detect:
+                            # Chercher le numéro de commande dans le XML
+                            for data in thales_data_list:
+                                if data.get('numeroCommande') and data['numeroCommande'] in xml_content:
+                                    matching_data = data
+                                    break
+                        
+                        if not matching_data and thales_data_list:
+                            # Prendre la première par défaut
+                            matching_data = thales_data_list[0]
+                        
+                        if matching_data:
+                            # Appliquer les corrections
+                            corrected_xml, applied_rules = xml_corrector.correct_xml_file(xml_content, matching_data)
+                            
+                            corrected_files.append({
+                                'name': xml_file.name,
+                                'content': corrected_xml,
+                                'original_size': len(xml_content),
+                                'corrected_size': len(corrected_xml)
+                            })
+                            
+                            correction_summary.append({
+                                'fichier': xml_file.name,
+                                'commande': matching_data.get('numeroCommande', 'N/A'),
+                                'regles_appliquees': len(applied_rules),
+                                'details': applied_rules
+                            })
+                        else:
+                            st.warning(f"⚠️ Aucune donnée THALES trouvée pour {xml_file.name}")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Erreur avec {xml_file.name}: {e}")
+                
+                # Afficher le résumé des corrections
+                if correction_summary:
+                    st.success(f"✅ {len(corrected_files)} fichiers XML corrigés")
+                    
+                    # Tableau des corrections
+                    df_corrections = pd.DataFrame(correction_summary)
+                    st.dataframe(df_corrections[['fichier', 'commande', 'regles_appliquees']], use_container_width=True)
+                    
+                    # Détails des règles appliquées
+                    with st.expander("📋 Détails des Règles Appliquées"):
+                        for summary in correction_summary:
+                            st.markdown(f"**{summary['fichier']}** (Commande: {summary['commande']})")
+                            if summary['details']:
+                                for rule in summary['details']:
+                                    st.markdown(f"  - ✅ {rule}")
+                            else:
+                                st.markdown("  - ⚠️ Aucune règle appliquée")
+                    
+                    # Téléchargement
+                    if len(corrected_files) == 1:
+                        # Un seul fichier
+                        file = corrected_files[0]
+                        st.download_button(
+                            label=f"📥 Télécharger {file['name']} (corrigé)",
+                            data=file['content'],
+                            file_name=f"THALES_CORRIGE_{file['name']}",
+                            mime="application/xml"
+                        )
+                    else:
+                        # Plusieurs fichiers - créer un ZIP
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for file in corrected_files:
+                                zip_file.writestr(f"THALES_CORRIGE_{file['name']}", file['content'])
+                        
+                        st.download_button(
+                            label=f"📥 Télécharger Archive ZIP ({len(corrected_files)} fichiers)",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"THALES_XML_CORRIGES_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+                            mime="application/zip"
+                        )
 
+# Point d'entrée
 if __name__ == "__main__":
     main()
