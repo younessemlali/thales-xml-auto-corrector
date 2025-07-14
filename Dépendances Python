@@ -1,0 +1,38 @@
+# requirements.txt - THALES XML Auto-Corrector
+# Repository: thales-xml-auto-corrector
+
+# Google APIs pour synchronisation Google Sheet
+google-api-python-client==2.108.0
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+
+# Data processing et manipulation
+pandas==2.1.4
+numpy==1.25.2
+
+# Date utilities
+python-dateutil==2.8.2
+
+# XML processing pour correction automatique
+lxml==4.9.3
+
+# Streamlit pour l'application web
+streamlit==1.28.2
+
+# JSON validation et utilities
+jsonschema==4.20.0
+
+# HTTP requests
+requests==2.31.0
+urllib3==2.1.0
+
+# Development et testing (optionnel)
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Logging avancé
+loguru==0.7.2
+
+# Type hints et validation
+typing-extensions==4.8.0
