@@ -1,14 +1,14 @@
-# requirements.txt - THALES XML Auto-Corrector
+# requirements.txt - THALES XML Auto-Corrector (Version Native)
 # Repository: thales-xml-auto-corrector
-# Versions compatibles Python 3.13
+# Versions compatibles Python 3.11+
 
-# Google APIs pour synchronisation Google Sheet
-google-api-python-client==2.147.0
-google-auth==2.35.0
-google-auth-oauthlib==1.2.1
-google-auth-httplib2==0.2.0
+# ❌ SUPPRIMÉ: Google APIs (plus nécessaires)
+# google-api-python-client==2.147.0
+# google-auth==2.35.0
+# google-auth-oauthlib==1.2.1
+# google-auth-httplib2==0.2.0
 
-# Data processing et manipulation - VERSIONS COMPATIBLES
+# Data processing et manipulation
 pandas==2.2.3
 numpy==1.26.4
 
@@ -18,15 +18,20 @@ python-dateutil==2.9.0
 # XML processing pour correction automatique
 lxml==5.3.0
 
-# Streamlit pour l'application web - VERSION RÉCENTE
+# Streamlit pour l'application web
 streamlit==1.39.0
 
 # JSON validation et utilities
 jsonschema==4.23.0
 
-# HTTP requests
-requests==2.32.3
-urllib3==2.2.3
-
 # Type hints et validation
 typing-extensions==4.12.2
+
+# ✅ NOUVEAU: Support pour différents formats d'emails
+beautifulsoup4==4.12.3
+
+# File handling (Excel support pour extensions futures)
+openpyxl==3.1.2
+
+# Encoding detection pour emails
+chardet==5.2.0
