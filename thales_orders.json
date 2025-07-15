@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "last_updated": "2025-07-15T08:40:09.484Z",
+    "last_updated": "2025-07-15T08:41:38.967Z",
     "version": "1.0.0",
     "client": "THALES",
     "source": "Google Sheet via Apps Script",
@@ -44,48 +44,11 @@
       "action": "create_or_update",
       "parent_xpath": "//PositionCharacteristics",
       "group": "PositionCharacteristics"
-    },
-    {
-      "name": "centre_analyse_cost_center_name",
-      "description": "Centre d'analyse complet dans CostCenterName",
-      "xpath": "//CustomerReportingRequirements/CostCenterName",
-      "source_field": "centre_analyse",
-      "action": "create_or_update",
-      "parent_xpath": "//CustomerReportingRequirements",
-      "group": "CustomerReportingRequirements"
-    },
-    {
-      "name": "centre_analyse_department_code",
-      "description": "Pr?fixe centre d'analyse dans DepartmentCode",
-      "xpath": "//CustomerReportingRequirements/DepartmentCode",
-      "source_field": "centre_analyse_prefix",
-      "action": "create_or_update",
-      "parent_xpath": "//CustomerReportingRequirements",
-      "group": "CustomerReportingRequirements"
-    },
-    {
-      "name": "centre_analyse_cost_center_code",
-      "description": "Pr?fixe centre d'analyse dans CostCenterCode",
-      "xpath": "//CustomerReportingRequirements/CostCenterCode",
-      "source_field": "centre_analyse_prefix",
-      "action": "create_or_update",
-      "parent_xpath": "//CustomerReportingRequirements",
-      "group": "CustomerReportingRequirements"
-    },
-    {
-      "name": "worksite_conditional",
-      "description": "Centre d'analyse dans WorkSiteName si site ? GEMENOS",
-      "xpath": "//WorkSite/WorkSiteName",
-      "source_field": "centre_analyse",
-      "action": "create_or_update",
-      "condition": "site_not_gemenos",
-      "parent_xpath": "//WorkSite",
-      "group": "ContractInformation"
     }
   ],
   "statistiques": {
     "total_commandes": 0,
-    "derniere_mise_a_jour": "2025-07-15T08:40:09.488Z",
+    "derniere_mise_a_jour": "2025-07-15T08:41:38.971Z",
     "codes_agence_uniques": [],
     "emplois_cc_uniques": [],
     "categories_socio_uniques": [],
