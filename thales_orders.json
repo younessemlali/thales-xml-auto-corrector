@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "last_updated": "2025-07-15T00:23:52.686Z",
+    "last_updated": "2025-07-15T00:38:51.837Z",
     "version": "1.0.0",
     "client": "THALES",
     "source": "Google Sheet via Apps Script",
@@ -85,7 +85,7 @@
   ],
   "statistiques": {
     "total_commandes": 0,
-    "derniere_mise_a_jour": "2025-07-15T00:23:52.691Z",
+    "derniere_mise_a_jour": "2025-07-15T00:38:51.841Z",
     "codes_agence_uniques": [],
     "emplois_cc_uniques": [],
     "categories_socio_uniques": [],
