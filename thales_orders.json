@@ -1,13 +1,74 @@
 {
   "metadata": {
-    "last_updated": "2025-07-15T08:41:38.967Z",
+    "last_updated": "2025-07-15T08:42:34.890Z",
     "version": "1.0.0",
     "client": "THALES",
     "source": "Google Sheet via Apps Script",
-    "repository": "thales-xml-auto-corrector",
-    "status": "empty_sheet"
+    "repository": "thales-xml-auto-corrector"
   },
-  "commandes": [],
+  "commandes": [
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "INCONNU",
+      "nom_fichier": "THALES_commande_20250715_1023_1980d2e5.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    },
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "INCONNU",
+      "nom_fichier": "THALES_commande_20250715_1023_1980d2ee.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    },
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "INCONNU",
+      "nom_fichier": "THALES_commande_20250715_1025_1980d300.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    },
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "INCONNU",
+      "nom_fichier": "THALES_commande_20250715_1025_1980d304.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    },
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "INCONNU",
+      "nom_fichier": "THALES_commande_20250715_1026_1980d313.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    },
+    {
+      "order_id": "client",
+      "client": "THALES",
+      "code_agence": "GR1",
+      "emploi_cc": "473c/102747/Operateur Production/Reparation LR04",
+      "categorie_socio": "OPERATEUR",
+      "classement_cc": "de",
+      "centre_analyse": "528_8005472 / AP",
+      "centre_analyse_prefix": "528_8005472",
+      "siret_client": "61203949500603",
+      "site_mission": "Campus Thales Bo",
+      "nom_fichier": "THALES_commande_20250715_1018_1980d29d.html",
+      "timestamp_traitement": "Tue Jul 15 2025 03:42:33 GMT+0200 (Central European Summer Time)",
+      "last_updated": "2025-07-15T08:42:34.890Z",
+      "site_not_gemenos": true
+    }
+  ],
   "regles_xml": [
     {
       "name": "numero_commande",
@@ -47,12 +108,24 @@
     }
   ],
   "statistiques": {
-    "total_commandes": 0,
-    "derniere_mise_a_jour": "2025-07-15T08:41:38.971Z",
-    "codes_agence_uniques": [],
-    "emplois_cc_uniques": [],
-    "categories_socio_uniques": [],
-    "classements_cc_uniques": [],
-    "repartition_par_agence": {}
+    "total_commandes": 6,
+    "derniere_mise_a_jour": "2025-07-15T08:42:34.890Z",
+    "codes_agence_uniques": [
+      "INCONNU",
+      "GR1"
+    ],
+    "emplois_cc_uniques": [
+      "473c/102747/Operateur Production/Reparation LR04"
+    ],
+    "categories_socio_uniques": [
+      "OPERATEUR"
+    ],
+    "classements_cc_uniques": [
+      "de"
+    ],
+    "repartition_par_agence": {
+      "INCONNU": 5,
+      "GR1": 1
+    }
   }
 }
